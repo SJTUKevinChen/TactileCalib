@@ -24,15 +24,15 @@
 
 ### 原点标定
 组装传感器，**在未安装传感器硅胶膜的情况下**，将Aruco标定板以期望建立的原点位置和坐标轴方向，固定在传感器平面上固定位置处，至少拍摄一张原点标定图像，将所有图像放到`origin_images`目录下。
-![alt text](image.png)
-![alt text](image-1.png)
+![alt text](./doc_images/image.png)
+![alt text](./doc_images/image-1.png)
 ![alt text](./origin_images/WIN_20250428_13_03_35_Pro.jpg)
 
 
 ### 验证数据（可选，建议）
 
 组装传感器，用已知位置的标记点按压触觉传感器，将采集到的图像保存到`./val`目录下，命名为`image_[真实x]_[真实y].jpg`
-![alt text](image-2.png)
+![alt text](./doc_images/image-2.png)
 ![alt text](./val/image_5_-7.jpg)
 
 ## 开始
