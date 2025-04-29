@@ -32,6 +32,7 @@
 ### 验证数据（可选，建议）
 
 组装传感器，用已知位置的标记点按压触觉传感器，将采集到的图像保存到`./val`目录下，命名为`image_[真实x]_[真实y].jpg`
+
 ![alt text](./doc_images/image-2.png)
 ![alt text](./val/image_5_-7.jpg)
 
