@@ -23,18 +23,18 @@ print("Distortion Coefficients (dist):\n", dist)
 
 # 利用原点图像网格，标定原点
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_ARUCO_ORIGINAL)
-Rt_avg, s_avg = set_origin_aruco(aruco_images, K, dist, aruco_dict, 10, visualize=False)
+Rt_avg = set_origin_aruco(aruco_images, K, dist, aruco_dict, 10, visualize=False)
 
 # 保存K, Rt_avg, s_avg
 param_path = os.path.join(output_dir, "camera_params.npz")
-np.savez(param_path, K=K, Rt_avg=Rt_avg, s_avg=s_avg)
+np.savez(param_path, K=K, Rt_avg=Rt_avg)
 
 # 验证标定结果
 pts = calib_val(val_images)
 
 # 计算标定误差
 for pt in pts:
-    X,Y = uv_to_aruco_full(pt["pixel"][0],pt["pixel"][1], param_path)
+    X,Y = get_coordinate_actual(pt["pixel"][0],pt["pixel"][1], param_path)
     err = np.linalg.norm(np.array(pt['real']) - np.array((X, Y))) / np.linalg.norm(np.array(pt['real']))
     print(f"真实坐标: {pt['real']}, 标定结果: ({X:.2f}, {Y:.2f}), Error: {err:.2%}")
 

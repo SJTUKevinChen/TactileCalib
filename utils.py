@@ -93,7 +93,7 @@ def average_Rt(rvecs, tvecs):
       rvecs - 旋转向量列表
       tvecs - 平移向量列表
     输出:
-      T_avg - 平均外参矩阵 (4x4)
+      T_avg - 平均外参矩阵 (3x4：[R,t])
     """
     # 计算平均平移向量
     t_avg = np.mean(tvecs, axis=0).reshape(3, 1)
@@ -115,39 +115,6 @@ def average_Rt(rvecs, tvecs):
 
     return Rt
 
-def compute_scale_from_rvec_tvec(K, rvec, tvec, img_corners, obj_corners):
-    """
-    输入：
-      K：内参矩阵 (3x3)
-      rvec, tvec：外参
-      img_pt：图像点 (u, v)
-      obj_pt：对应棋盘格世界坐标点 (X, Y, Z)，比如 (0, 0, 0)
-    输出：
-      s：尺度因子
-    """
-    # 旋转向量转旋转矩阵
-    R, _ = cv2.Rodrigues(rvec)
-    t = tvec.reshape(3, 1)
-
-    s_list = []
-
-    for img_corner, obj_corner in zip(img_corners, obj_corners):
-        uv1 = np.array([[img_corner[0]], [img_corner[1]], [1.0]])  # (3,1)
-        M = np.linalg.inv(K) @ uv1  # (3,1)
-
-        # 世界坐标到相机坐标
-        Pw = np.array([[obj_corner[0]], [obj_corner[1]], [obj_corner[2]]])  # (3,1)
-        Pc = R @ Pw + t  # (3,1)
-
-        # s = Zc / m_z
-        s = Pc[2, 0] / M[2, 0]
-
-        s_list.append(s)
-    # 取平均
-    s = np.mean(s_list)
-
-    return s
-
 def set_origin_aruco(images, K, dist, aruco_dict, marker_length_mm, visualize=False):
     """
     输入:
@@ -158,14 +125,12 @@ def set_origin_aruco(images, K, dist, aruco_dict, marker_length_mm, visualize=Fa
       marker_length_mm - ArUco 标记的边长，单位 mm
     输出:
       Rt_avg - 平均外参矩阵 (3x4)
-      s_avg - 平均尺度因子
     """
     parameters = aruco.DetectorParameters()
     detector = aruco.ArucoDetector(aruco_dict, parameters)
 
     rvecs_collect = []
     tvecs_collect = []
-    scales_collect = []
 
     # 预定义Aruco的四个角的真实世界坐标（以中心为原点），单位 mm
     half_size = marker_length_mm / 2.0
@@ -189,15 +154,13 @@ def set_origin_aruco(images, K, dist, aruco_dict, marker_length_mm, visualize=Fa
 
         # 若检测到，则估计姿态并绘制坐标轴
         if ids is not None:
-            print(f"检测到的 ArUco 交点坐标:\n {corners}")
+            print(f"检测到的 ArUco 角点坐标:\n {corners}")
             rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners, marker_length_mm, K, dist)
 
             img_corners = corners[0][0]  # (4,2)
-            scale = compute_scale_from_rvec_tvec(K, rvec, tvec, img_corners, obj_corners)
 
             rvecs_collect.append(rvec)
             tvecs_collect.append(tvec)
-            scales_collect.append(scale)
 
             if visualize:
               # 绘制坐标系轴，长度单位为 mm
@@ -215,11 +178,10 @@ def set_origin_aruco(images, K, dist, aruco_dict, marker_length_mm, visualize=Fa
 
     # 统一求平均
     Rt_avg = average_Rt(rvecs_collect, tvecs_collect)
-    s_avg = np.mean(scales_collect)
 
-    return Rt_avg, s_avg
+    return Rt_avg
 
-def uv_to_aruco_full(u, v, param_path):
+def get_coordinate_actual(u, v, param_path):
     """
     输入: 
       u, v - 像素坐标
@@ -231,24 +193,21 @@ def uv_to_aruco_full(u, v, param_path):
     param = np.load(param_path)
     K = param['K']  # 内参矩阵
     Rt = param['Rt_avg']  # 外参矩阵
-    s = param['s_avg']  # 平均尺度因子
 
-    # K乘以外参
-    K_Rt = K @ Rt[:, [0,1,3]]  # 只取R的前两列 + t列 (3x3矩阵)
-
+    # 计算方程Ax=b最小二乘解
     # 输入像素 (齐次)
     uv1 = np.array([u, v, 1.0]).reshape(3, 1)
+    # 只取R的前两列 + t列 (3x3矩阵)
+    T = Rt[:, [0,1,3]]
+    A_full = (uv1 @ np.array([0, 0, 1]).reshape(1, 3) - K) @ T
+    A1A2 = A_full[:,[0,1]]
+    b = -A_full[:,2].reshape(3, 1)
 
-    # 求逆
-    K_Rt_inv = np.linalg.inv(K_Rt)
+    # 求解最小二乘
+    xy = np.linalg.inv(A1A2.T @ A1A2) @ A1A2.T @ b
+    print(f"xy: {xy}")
 
-    # 计算平面坐标
-    XY1 = K_Rt_inv @ (s * uv1)
-
-    X = XY1[0,0]
-    Y = XY1[1,0]
-
-    return X, Y
+    return xy[0,0], xy[1,0]
 
 def calib_val(images):
     """
